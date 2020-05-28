@@ -16,7 +16,7 @@ DEBUGMODE=0
 
 LOOPMODE=0
 IGNOREEMPTY=0
-DELAY="10s"
+DELAY=10
 RECORD=""
 
 #
@@ -45,7 +45,7 @@ function Usage()
 	Msg "-l\t\tLoop until CTRL-C"
 	Msg "-i [file]\tESSID's to ignore"
 	Msg "-n\t\tDo not show empty ESSID's"
-	Msg "-s [time]\tTime to pause between scans in continuous mode"
+	Msg "-s [time]\tTime (in seconds) to pause between scans in loop mode"
 	Msg "-r [file]\tRecord/log new essids"
 	Msg "-d\t\tEnter debug mode\n"
 }
@@ -54,7 +54,7 @@ function Usage()
 function CreateAPList()
 {
 	DbgMsg "Scanning..."
-	iwlist wlan0 scan | grep -E " ESSID:" | tr -d "" > ${1}
+	iwlist wlan0 scan | grep -E " ESSID:" | tr -d " " > ${1}
 	DbgMsg "...scanning completed"
 }
 
@@ -120,7 +120,7 @@ while [ ${LOOPMODE} -gt -1 ]; do
 						echo "${essid}" >> "${RECORD}"
 					fi
 				else
-					echo "${essid}" >> "${RECORD}"
+					echo "${essid}" > "${RECORD}"
 				fi
 			fi
 		fi
@@ -128,6 +128,13 @@ while [ ${LOOPMODE} -gt -1 ]; do
 
 	rm ${TMP}
 
-	[ ${LOOPMODE} -gt 0 ] && DbgMsg "Sleeping for loop" && sleep ${DELAY}
+	if [ ${LOOPMODE} -gt 0 ]; then
+		DbgMsg "Prompting to loop exit"
+
+		read -p "Press 'q' to quit scanning, press ENTER to skip delay..." -t ${DELAY} -N 1
+
+		[ "${REPLY}" = "q" -o "${REPLY}" = "Q" ] && LOOPMODE=-1
+	fi
+
 	[ ${LOOPMODE} -eq 0 ] && break
 done
