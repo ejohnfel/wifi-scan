@@ -1,0 +1,133 @@
+#!/bin/bash
+
+#
+# Wifi Scanner :
+# This script uses iwlist to scan for all nearby access points.
+# The script can run in a looped mode, can include a list of ESSIDs to ignore and scan and save unique ESSID's
+#
+
+declare -a ignore
+
+TMP=/tmp/scan.${RANDOM}
+
+ignore=( )
+
+DEBUGMODE=0
+
+LOOPMODE=0
+IGNOREEMPTY=0
+DELAY="10s"
+RECORD=""
+
+#
+# Functions
+#
+
+# Msg : Print message
+function Msg()
+{
+	echo -e "${*}"
+}
+
+# DebugMsg : Print Debug Message
+function DbgMsg()
+{
+	[ ${DEBUGMODE} -gt 0 ] && Msg "$(date) : ${*}"
+}
+
+# Usage
+function Usage()
+{
+	Msg "\n======================="
+	Msg "ScanAPs : Scan for AP's"
+	Msg "======================="
+	Msg "-h\t\tThis menu"
+	Msg "-l\t\tLoop until CTRL-C"
+	Msg "-i [file]\tESSID's to ignore"
+	Msg "-n\t\tDo not show empty ESSID's"
+	Msg "-s [time]\tTime to pause between scans in continuous mode"
+	Msg "-r [file]\tRecord/log new essids"
+	Msg "-d\t\tEnter debug mode\n"
+}
+
+# Scan APS
+function CreateAPList()
+{
+	DbgMsg "Scanning..."
+	iwlist wlan0 scan | grep -E " ESSID:" | tr -d "" > ${1}
+	DbgMsg "...scanning completed"
+}
+
+#
+# Main Loop
+#
+
+DbgMsg "Reading Opts"
+
+while getopts "dhnli:r:s:" opt; do
+	case ${opt} in
+	"h")	Usage; exit 0 ;;
+	"d")	DEBUGMODE=1 ;;
+	"l")	LOOPMODE=1 ;;
+	"n")	IGNOREEMPTY=1 ;;
+	"i")	readarray -t ignore < "${OPTARG}" ;;
+	"s")	DELAY="${OPTARG}" ;;
+	"r")	RECORD="${OPTARG}" ;;
+	esac
+done
+
+DbgMsg "About to Scan"
+
+while [ ${LOOPMODE} -gt -1 ]; do
+	CreateAPList "${TMP}"
+	[ ${LOOPMODE} -gt 0 ] && clear
+
+	DbgMsg "Processing scanned list"
+
+	while read line; do
+		essid=$(cut -d":" -f2 <<< ${line})
+		essid=${essid//\"/}
+
+		[ "${essid}" == "" ] && essid=empty
+
+		found=false
+
+		if [ ${IGNOREEMPTY} -gt 0 -a "${essid}" = "empty" ]; then
+			found=true
+			DbgMsg "Ignoring empty ESSID"
+		else
+			DbgMsg "Check for ignored essids : ${#ignore[@]}"
+
+			for ((index=0; index < ${#ignore[@]}; ++index)); do
+				id="${ignore[${index}]}"
+
+				DbgMsg "Checking for ignore on ${id}"
+
+				if [ "${id}" = "${essid}" ]; then
+					DbgMsg "Ignoring ... ${essid}"
+					found=true
+					break
+				fi
+			done
+		fi
+
+		if [ ${found} = false ]; then
+			Msg $essid
+
+			if [ ! "${RECORD}" = "" ]; then
+				if [ -f "${RECORD}" ]; then
+					if ! grep -q -F "${essid}" "${RECORD}"; then
+						echo "${essid}" >> "${RECORD}"
+					fi
+				else
+					echo "${essid}" >> "${RECORD}"
+				fi
+			fi
+		fi
+	done < ${TMP}
+
+	rm ${TMP}
+
+	[ ${LOOPMODE} -gt 0 ] && DbgMsg "Sleeping for loop" && sleep ${DELAY}
+	[ ${LOOPMODE} -eq 0 ] && break
+done
