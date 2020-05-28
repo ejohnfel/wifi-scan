@@ -131,6 +131,7 @@ while [ ${LOOPMODE} -gt -1 ]; do
 	if [ ${LOOPMODE} -gt 0 ]; then
 		DbgMsg "Prompting to loop exit"
 
+		printf "\n"
 		read -p "Press 'q' to quit scanning, press ENTER to skip delay..." -t ${DELAY} -N 1
 
 		[ "${REPLY}" = "q" -o "${REPLY}" = "Q" ] && LOOPMODE=-1
