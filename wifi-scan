@@ -14,10 +14,12 @@ ignore=( )
 
 DEBUGMODE=0
 
+QUIETMODE=0
 LOOPMODE=0
 IGNOREEMPTY=0
 DELAY=10
 RECORD=""
+INTERFACE=wlan0
 
 #
 # Functions
@@ -26,7 +28,7 @@ RECORD=""
 # Msg : Print message
 function Msg()
 {
-	echo -e "${*}"
+	[ ${QUIETMODE} -eq 0 ] && echo -e "${*}"
 }
 
 # DebugMsg : Print Debug Message
@@ -42,11 +44,13 @@ function Usage()
 	Msg "ScanAPs : Scan for AP's"
 	Msg "======================="
 	Msg "-h\t\tThis menu"
-	Msg "-l\t\tLoop until CTRL-C"
+	Msg "-e\t\tInterface to use (wlan0 default)"
+	Msg "-l\t\tLoop until 'q' pressed"
 	Msg "-i [file]\tESSID's to ignore"
 	Msg "-n\t\tDo not show empty ESSID's"
 	Msg "-s [time]\tTime (in seconds) to pause between scans in loop mode"
 	Msg "-r [file]\tRecord/log new essids"
+	Msg "-q\t\tQuiet mode [output only to -r file]"
 	Msg "-d\t\tEnter debug mode\n"
 }
 
@@ -54,7 +58,7 @@ function Usage()
 function CreateAPList()
 {
 	DbgMsg "Scanning..."
-	iwlist wlan0 scan | grep -E " ESSID:" | tr -d " " > ${1}
+	iwlist "${INTERFACE}" scan | grep -E " ESSID:" > ${1}
 	DbgMsg "...scanning completed"
 }
 
@@ -64,7 +68,7 @@ function CreateAPList()
 
 DbgMsg "Reading Opts"
 
-while getopts "dhnli:r:s:" opt; do
+while getopts "dhnlqi:r:s:e:" opt; do
 	case ${opt} in
 	"h")	Usage; exit 0 ;;
 	"d")	DEBUGMODE=1 ;;
@@ -73,6 +77,8 @@ while getopts "dhnli:r:s:" opt; do
 	"i")	readarray -t ignore < "${OPTARG}" ;;
 	"s")	DELAY="${OPTARG}" ;;
 	"r")	RECORD="${OPTARG}" ;;
+	"e")	INTERFACE="${OPTARG}" ;;
+	"q")	QUITEMODE=1 ;;
 	esac
 done
 
@@ -129,12 +135,16 @@ while [ ${LOOPMODE} -gt -1 ]; do
 	rm ${TMP}
 
 	if [ ${LOOPMODE} -gt 0 ]; then
-		DbgMsg "Prompting to loop exit"
+		if [ ${QUIETMODE} -eq 0 ]; then
+			DbgMsg "Prompting to loop exit"
 
-		printf "\n"
-		read -p "Press 'q' to quit scanning, press ENTER to skip delay..." -t ${DELAY} -N 1
+			printf "\n"
+			read -p "Press 'q' to quit scanning, press ENTER to skip delay..." -t ${DELAY} -N 1
+		else
+			read -t ${DELAY} -N 1
+		fi
 
-		[ "${REPLY}" = "q" -o "${REPLY}" = "Q" ] && LOOPMODE=-1
+		[ "${REPLY}" = "q" -o "${REPLY}" = "Q" ] && LOOPMODE=-1 && printf "\n"
 	fi
 
 	[ ${LOOPMODE} -eq 0 ] && break
